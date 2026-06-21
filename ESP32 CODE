@@ -1,1 +1,111 @@
+#include <WiFi.h>
+#include <ThingSpeak.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// WiFi
+const char* ssid = "Joker";
+const char* password = "batman....";
+
+// ThingSpeak
+unsigned long channelID = 3397690;
+const char* writeAPIKey = "JAFCE0T2DOR6XUU3";
+
+WiFiClient client;
+
+// Pins
+int gasSensor = 34;
+int buzzer = 25;
+int relay = 26;
+
+void setup() {
+
+  Serial.begin(115200);
+
+  pinMode(buzzer, OUTPUT);
+  pinMode(relay, OUTPUT);
+
+  digitalWrite(buzzer, LOW);
+  digitalWrite(relay, HIGH);
+
+  Wire.begin(21, 22);
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+
+  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi Connected");
+
+  ThingSpeak.begin(client);
+}
+
+void loop() {
+
+  int gasValue = analogRead(gasSensor);
+
+  int fanStatus = 0;
+  int buzzerStatus = 0;
+
+  if (gasValue > 900) {
+
+    digitalWrite(buzzer, HIGH);
+    digitalWrite(relay, LOW);
+
+    fanStatus = 1;
+    buzzerStatus = 1;
+
+  } else {
+
+    digitalWrite(buzzer, LOW);
+    digitalWrite(relay, HIGH);
+
+    fanStatus = 0;
+    buzzerStatus = 0;
+  }
+
+  // OLED Display
+  display.clearDisplay();
+
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+
+  display.setCursor(0, 0);
+  display.print("Gas Value:");
+
+  display.setTextSize(2);
+  display.setCursor(0, 20);
+  display.print(gasValue);
+
+  display.display();
+
+  // Serial Monitor
+  Serial.print("Gas = ");
+  Serial.println(gasValue);
+
+  // ThingSpeak Upload
+  ThingSpeak.setField(1, gasValue);
+  ThingSpeak.setField(2, fanStatus);
+  ThingSpeak.setField(3, buzzerStatus);
+
+  int x = ThingSpeak.writeFields(channelID, writeAPIKey);
+
+  Serial.print("ThingSpeak Response: ");
+  Serial.println(x);
+
+  delay(15000);
+}
